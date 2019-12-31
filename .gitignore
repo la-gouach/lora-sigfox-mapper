@@ -1,1 +1,4 @@
 .DS_Store
+PRIVATE.py
+*.pyc
+
