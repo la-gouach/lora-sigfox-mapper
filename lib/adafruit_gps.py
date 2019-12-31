@@ -58,7 +58,7 @@ class Mytime:
         self.day = day
         self.hour = hour
         self.minute = minute
-        self.seconde = second
+        self.second = second
     def set_hhmmss(self, str):
         if str is not None and len(str) >= 6:
             self.hour = int(str[0:2])
@@ -69,6 +69,11 @@ class Mytime:
             self.year = int(str[4:6])
             self.month = int(str[2:4])
             self.day = int(str[0:2])
+    def to_iso(self):
+        return '{}-{:02d}-{:02d}T{:02d}:{:02d}:{:02d}+0000'.format(2000 + self.year, self.month, self.day, self.hour, self.minute, int(self.second))
+    @property
+    def is_set(self):
+        return (self.hour != 0 or self.minute != 0 or self.second != 0) and (self.day != 0 or self.month != 0 or self.year != 0)
 
 # Internal helper parsing functions.
 # These handle input that might be none or null and return none instead of
@@ -221,6 +226,8 @@ class GPS:
         """Returns a newline terminated bytearray, must have timeout set for
         the underlying UART or this will block forever!"""
         line = self._uart.readline()
+        if line is not None:
+            print('line:', line)
         return line
 
     def _read_sentence(self):
