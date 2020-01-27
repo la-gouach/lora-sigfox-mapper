@@ -2,15 +2,12 @@ import pycom
 import time
 from machine import Pin, UART, SD
 import os
+from machine import WDT
 
 pycom.heartbeat(False)
+wdt = WDT(timeout=15*60*1000)
 
 button = Pin('P10', mode=Pin.IN, pull=Pin.PULL_UP)
-
-print('Waiting for button press to start the code')
-while button():
-    time.sleep(0.1)
-print('Code started')
 time.sleep(0.1)
 
 import adafruit_gps
@@ -153,16 +150,15 @@ except Exception as read_exception:
         print('Error while opening /log.txt in write mode:', write_exception)
 
 while True:
-    gps = adafruit_gps.GPS(uart, debug=False)
-    print('Waiting for button')
-    while button():
-        time.sleep(0.1)
-    print('Button has been pressed. Connecting to the GPS')
     pycom.rgbled(YELLOW)
+    wdt.feed()
+    print('Connecting to the GPS')
+    gps = adafruit_gps.GPS(uart, debug=False)
     gps.send_command(b'PMTK314,1,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0')
     gps.send_command(b'PMTK220,1000')
     while gps.latitude is None or gps.longitude is None or not gps.datetime.is_set:
         gps.update()
+    wdt.feed()
     pycom.rgbled(GREEN)
     print('GPS found.')
     print('Position: ', gps.longitude, ', ', gps.latitude)
@@ -170,8 +166,11 @@ while True:
     pycom.rgbled(BLACK)
     time.sleep(1)
 
+    wdt.feed()
     sigfox_tx_success, sigfox_rx_success, sigfox_rssi = emit_sigfox_downlink()
+    wdt.feed()
     lora_tx_success, lora_rx_success, lora_rssi = emit_lora_packet()
+    wdt.feed()
 
     # Logging to the SD card
     csv_line = '{},{},{},{},{},{},{},{},{},{}\n'.format(gps.datetime.to_iso(), gps.longitude, gps.latitude,
@@ -184,4 +183,8 @@ while True:
             f.write(csv_line)
     except Exception as e:
         print('Error while opening/writing /log.txt in append mode:', e)
+    
+    for i in range(10):
+        wdt.feed()
+        time.sleep(1800)
 
