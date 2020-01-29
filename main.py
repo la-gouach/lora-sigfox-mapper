@@ -32,39 +32,42 @@ GREEN = 0x007f00
 BLUE = 0x00007f
 YELLOW = RED | GREEN
 PURPLE = BLUE | RED
+WHITE = RED | BLUE | GREEN
 
 def emit_sigfox_downlink():
-    pycom.rgbled(BLUE)
+    pycom.rgbled(PURPLE)
     sigfox_socket = socket.socket(socket.AF_SIGFOX, socket.SOCK_RAW)
     sigfox_socket.setblocking(True)
     sigfox_socket.setsockopt(socket.SOL_SIGFOX, socket.SO_RX, True)
 
     print('Sending sigfox packet...')
     tx_success = False
+    rx_success = False
+    rssi = 0
     try:
         sigfox_socket.send(bytes([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]))
         print('Success !')
         tx_success = True
-        pycom.rgbled(GREEN) # green
+        pycom.rgbled(GREEN)
         time.sleep(1)
-    except:
+        print('Receiving downlink...')
+        pycom.rgbled(PURPLE)
+        received = sigfox_socket.recv(8)
+        
+        if received:
+            print('Success !')
+            rx_success = True
+            pycom.rgbled(GREEN) # green
+        else:
+            print('Failure...')
+            pycom.rgbled(RED) # red
+        rssi = sigfox.rssi()
+    except Exception as e:
         print('Failure...')
-        pycom.rgbled(RED) # red
+        print(e)
+        pycom.rgbled(RED) 
         time.sleep(1)
-        pycom.rgbled(BLACK) # red
-
-    print('Receiving downlink...')
-    pycom.rgbled(BLUE)
-    received = sigfox_socket.recv(8)
-    rx_success = False
-    if received:
-        print('Success !')
-        rx_success = True
-        pycom.rgbled(GREEN) # green
-    else:
-        print('Failure...')
-        pycom.rgbled(RED) # red
-    rssi = sigfox.rssi()
+        pycom.rgbled(BLACK)
     time.sleep(1)
     pycom.rgbled(BLACK)
     sigfox_socket.close()
@@ -76,66 +79,73 @@ def emit_lora_packet():
     app_key = ubinascii.unhexlify(LORA_APP_KEY)
 
     print('Joining the LoRaWan network')
-    pycom.rgbled(YELLOW)
+    pycom.rgbled(BLUE)
     # join a network using OTAA (Over the Air Activation)
-    lora.join(activation=LoRa.OTAA, auth=(app_eui, app_key), timeout=0)
-    while not lora.has_joined(): # TODO: Add timeout
-        time.sleep(1)
-    print('Joined')
-    lora_socket = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
-
-    # set the LoRaWAN data rate
-    lora_socket.setsockopt(socket.SOL_LORA, socket.SO_DR, 5)
-
-    def lora_cb(lora):
-        events = lora.events()
-        if events & LoRa.RX_PACKET_EVENT:
-            print('Lora packet received')
-        if events & LoRa.TX_PACKET_EVENT:
-            print('Lora packet sent')
-
-    lora.callback(trigger=(LoRa.RX_PACKET_EVENT | LoRa.TX_PACKET_EVENT), handler=lora_cb)
-    lora_socket.setblocking(True)
-
-    print('Sending packet...')
-    pycom.rgbled(PURPLE)
     tx_success = False
-    try:
-        lora_socket.send(bytes([0x01, 0x02, 0x03]))
-        tx_success = True
-        pycom.rgbled(GREEN)
-        print('Success !')
-        time.sleep(1)
-    except:
-        pycom.rgbled(RED)
-        time.sleep(1)
-        print('Failure...')
-    finally:
-        pycom.rgbled(BLACK)
-
-    lora_socket.setblocking(False)
-
-    time.sleep(5)
-    print('Receiving packet...')
     rx_success = False
-    pycom.rgbled(PURPLE)
-    # get any data received (if any...)
-    data = lora_socket.recv(64)
-    if data:
-        rx_success = True
-        pycom.rgbled(GREEN)
-        print('Success !')
-        print('Packet received:', data)
-    else:
-        pycom.rgbled(RED)
-        print('Failure...')
+    rssi = 0
+    try:
+        lora.join(activation=LoRa.OTAA, auth=(app_eui, app_key), timeout=5*60*1000, dr=1)
+        while not lora.has_joined(): # TODO: Add timeout
+            time.sleep(1)
+        print('Joined')
+        lora_socket = socket.socket(socket.AF_LORA, socket.SOCK_RAW)
 
+        # set the LoRaWAN data rate
+        lora_socket.setsockopt(socket.SOL_LORA, socket.SO_DR, 5)
+
+        def lora_cb(lora):
+            events = lora.events()
+            if events & LoRa.RX_PACKET_EVENT:
+                print('Lora packet received')
+            if events & LoRa.TX_PACKET_EVENT:
+                print('Lora packet sent')
+
+        lora.callback(trigger=(LoRa.RX_PACKET_EVENT | LoRa.TX_PACKET_EVENT), handler=lora_cb)
+        lora_socket.setblocking(True)
+
+        print('Sending packet...')
+        pycom.rgbled(BLUE)
+        
+        try:
+            lora_socket.send(bytes([0x01, 0x02, 0x03]))
+            tx_success = True
+            pycom.rgbled(GREEN)
+            print('Success !')
+            time.sleep(1)
+        except Exception as e:
+            pycom.rgbled(RED)
+            time.sleep(1)
+            print('Failure...')
+            prin(e)
+        finally:
+            pycom.rgbled(BLACK)
+
+        rssi = lora.stats().rssi
+        lora_socket.setblocking(False)
+
+        time.sleep(5)
+        print('Receiving packet...')
+        pycom.rgbled(BLUE)
+        # get any data received (if any...)
+        data = lora_socket.recv(64)
+        if data:
+            rx_success = True
+            pycom.rgbled(GREEN)
+            print('Success !')
+            print('Packet received:', data)
+        else:
+            pycom.rgbled(RED)
+            print('Failure...')
+        lora_socket.close()
+
+    except Exception as e:
+        print(e)
+        pass
     time.sleep(1)
     pycom.rgbled(BLACK)
 
-    lora_socket.close()
-
-    return tx_success, rx_success, lora.stats().rssi
+    return tx_success, rx_success, rssi
 
 try:
     with open(LOG_FILE, 'r') as f:
@@ -150,7 +160,7 @@ except Exception as read_exception:
         print('Error while opening /log.txt in write mode:', write_exception)
 
 while True:
-    pycom.rgbled(YELLOW)
+    pycom.rgbled(WHITE)
     wdt.feed()
     print('Connecting to the GPS')
     gps = adafruit_gps.GPS(uart, debug=False)
@@ -159,11 +169,8 @@ while True:
     while gps.latitude is None or gps.longitude is None or not gps.datetime.is_set:
         gps.update()
     wdt.feed()
-    pycom.rgbled(GREEN)
     print('GPS found.')
     print('Position: ', gps.longitude, ', ', gps.latitude)
-    time.sleep(1)
-    pycom.rgbled(BLACK)
     time.sleep(1)
 
     wdt.feed()
@@ -184,7 +191,8 @@ while True:
     except Exception as e:
         print('Error while opening/writing /log.txt in append mode:', e)
     
+    pycom.rgbled(BLACK)
     for i in range(10):
         wdt.feed()
-        time.sleep(1800)
+        time.sleep(60)
 

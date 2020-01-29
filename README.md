@@ -19,4 +19,5 @@ https://spot.objenious.com/device/88383142687148134/downlinks
 
 objenious doc
 https://spot.objenious.com/faq/documents/48762835/51183620/51806226
-
+api doc
+https://api.objenious.com/doc/doc.html#
