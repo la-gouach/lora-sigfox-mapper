@@ -194,5 +194,5 @@ while True:
     pycom.rgbled(BLACK)
     for i in range(10):
         wdt.feed()
-        time.sleep(60)
+        time.sleep(360)
 
